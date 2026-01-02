@@ -86,6 +86,17 @@ async function checkSource(sourceKey) {
       // 发送通知
       await sendNotification(source.name, '发现新内容');
       
+      // 获取新内容并触发GitHub Actions (模拟)
+      // 在实际应用中，simulateContentCheck应该返回新内容列表
+      const newItems = [{
+        title: `New update from ${source.name}`,
+        source: source.name,
+        date: new Date().toISOString(),
+        url: source.url
+      }];
+      
+      await triggerGitHubAction(newItems);
+      
       // 更新最后检查时间
       lastCheck[sourceKey] = Date.now();
       await chrome.storage.local.set({ lastCheck });
@@ -193,3 +204,65 @@ async function fetchGitHubUpdates() {
 }
 
 console.log('RL for VLA Monitor background script loaded');
+
+// 触发GitHub Actions工作流
+async function triggerGitHubAction(newItems) {
+  const { githubToken, repoOwner, repoName } = await chrome.storage.local.get(['githubToken', 'repoOwner', 'repoName']);
+  
+  if (!githubToken || !repoOwner || !repoName) {
+    console.log('GitHub配置不完整，跳过自动更新');
+    return;
+  }
+
+  const url = `https://api.github.com/repos/${repoOwner}/${repoName}/dispatches`;
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `token ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        event_type: 'new-paper-submission',
+        client_payload: {
+          papers: JSON.stringify(newItems)
+        }
+      })
+    });
+
+    if (response.ok) {
+      console.log('成功触发GitHub Actions自动更新');
+      sendNotification('系统', '已自动同步新数据到GitHub仓库');
+    } else {
+      console.error('触发GitHub Actions失败:', response.status);
+    }
+  } catch (error) {
+    console.error('触发GitHub Actions出错:', error);
+  }
+}
+
+// 修改checkSource函数，在发现新内容时调用triggerGitHubAction
+// 注意：这里需要替换原有的checkSource函数逻辑，或者在原有逻辑中插入调用
+// 为了简单起见，我们假设在原有逻辑的 if (hasNewContent) 块中调用
+// 下面是一个示例覆盖：
+
+/*
+// 示例：覆盖原有的checkSource逻辑（请根据实际情况调整）
+async function checkSource(sourceKey) {
+  // ... 原有代码 ...
+  
+    if (hasNewContent) {
+      // 发送通知
+      await sendNotification(source.name, '发现新内容');
+      
+      // 触发GitHub Actions
+      const newItems = await getNewItemsFromSource(source); // 假设有这个函数获取新项目
+      await triggerGitHubAction(newItems);
+      
+      // ... 原有代码 ...
+    }
+  // ... 原有代码 ...
+}
+*/

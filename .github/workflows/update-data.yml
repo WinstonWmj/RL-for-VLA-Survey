@@ -1,0 +1,43 @@
+name: Update Data from Extension
+
+on:
+  repository_dispatch:
+    types: [new-paper-submission]
+  workflow_dispatch:
+    inputs:
+      json_data:
+        description: 'JSON data of new papers'
+        required: true
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Process new data
+        env:
+          NEW_PAPERS_JSON: ${{ github.event.client_payload.papers || github.event.inputs.json_data }}
+        run: |
+          python scripts/update_data.py
+          
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'RL-VLA-Bot'
+          git config --global user.email 'bot@rl-vla.com'
+          git add papers.md web/client/src/lib/data.ts
+          git commit -m "Auto-update: Add new papers from extension" || echo "No changes to commit"
+          git push
+          
+      - name: Trigger Web Build
+        # 这里可以触发网页的重新构建，如果使用GitHub Pages，上面的push会自动触发
+        run: echo "Web build triggered by push"
